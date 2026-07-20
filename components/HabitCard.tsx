@@ -15,9 +15,10 @@ interface HabitCardProps {
   onEdit: (habit: Habit) => void;
   onViewHistory: (habit: Habit) => void;
   language: Language;
+  onViewDetails: (habit: Habit) => void;
 }
 
-const HabitCard: React.FC<HabitCardProps> = ({ habit, category, selectedDate, onToggle, onDelete, onEdit, onViewHistory, language }) => {
+const HabitCard: React.FC<HabitCardProps> = ({ habit, category, selectedDate, onToggle, onDelete, onEdit, onViewHistory, language, onViewDetails }) => {
   const t = translations[language];
   const [motivation, setMotivation] = useState<string | null>(null);
   const [loadingMotivation, setLoadingMotivation] = useState(false);
@@ -51,7 +52,9 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, category, selectedDate, on
   };
 
   return (
-    <div className={`group relative backdrop-blur-md rounded-2xl p-5 transition-all duration-500 border ${
+    <div 
+      onClick={() => onViewDetails(habit)}
+      className={`group relative backdrop-blur-md rounded-2xl p-5 transition-all duration-500 border cursor-pointer ${
       isCompleted 
         ? 'bg-white/10 border-emerald-500/30 shadow-[0_0_30px_-10px_rgba(16,185,129,0.2)]' 
         : 'bg-slate-900/40 border-white/5 hover:bg-slate-800/40 hover:border-white/10 hover:shadow-lg'
@@ -62,7 +65,7 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, category, selectedDate, on
         {/* Left Side: Button & Info */}
         <div className="flex items-center gap-5 flex-1 min-w-0">
           <button
-            onClick={() => onToggle(habit.id, selectedDate)}
+            onClick={(e) => { e.stopPropagation(); onToggle(habit.id, selectedDate); }}
             className={`flex-shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500 border ${
               isCompleted 
                 ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white border-transparent shadow-lg shadow-emerald-500/30 scale-105' 
@@ -110,8 +113,9 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, category, selectedDate, on
              )}
            </button>
 
+          {/* Calendar button kept for fallback but mainly we use click-to-detail now */}
           <button 
-            onClick={() => onViewHistory(habit)}
+            onClick={(e) => { e.stopPropagation(); onViewDetails(habit); }}
             className="p-2 text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 rounded-xl transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
             title={t.history}
           >
@@ -119,7 +123,7 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, category, selectedDate, on
           </button>
 
           <button 
-            onClick={() => onEdit(habit)}
+            onClick={(e) => { e.stopPropagation(); onEdit(habit); }}
             className="p-2 text-slate-400 hover:text-sky-300 hover:bg-sky-500/20 rounded-xl transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
             title="Edit habit"
           >
@@ -127,7 +131,7 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, category, selectedDate, on
           </button>
 
           <button 
-            onClick={() => onDelete(habit.id)}
+            onClick={(e) => { e.stopPropagation(); onDelete(habit.id); }}
             className="p-2 text-slate-400 hover:text-red-300 hover:bg-red-500/20 rounded-xl transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
             title="Delete habit"
           >
@@ -147,7 +151,7 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, category, selectedDate, on
                 "{motivation}"
               </p>
            </div>
-           <button onClick={() => setMotivation(null)} className="text-slate-500 hover:text-slate-300">
+           <button onClick={(e) => { e.stopPropagation(); setMotivation(null); }} className="text-slate-500 hover:text-slate-300">
               <X className="w-4 h-4" />
            </button>
         </div>

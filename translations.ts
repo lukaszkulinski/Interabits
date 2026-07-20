@@ -57,6 +57,15 @@ export const translations = {
     dailyInsight: 'Daily Insight',
     refresh: 'Refresh',
     insightWelcome: 'Ready to conquer today?',
+    // Details View
+    back: 'Back',
+    currentStreak: 'Current Streak',
+    bestStreak: 'Best Streak',
+    totalCompletions: 'Total',
+    successRate: 'Consistency',
+    frequencyByDay: 'Frequency by Day',
+    calendar: 'Calendar',
+    askAiAboutHabit: 'Ask AI about this habit',
     // Default category translations
     cat_health: 'Health',
     cat_productivity: 'Productivity',
@@ -120,6 +129,15 @@ export const translations = {
     dailyInsight: 'Dzienny Wgląd',
     refresh: 'Odśwież',
     insightWelcome: 'Gotowy na dzisiejsze wyzwania?',
+    // Details View
+    back: 'Wróć',
+    currentStreak: 'Obecna seria',
+    bestStreak: 'Rekord serii',
+    totalCompletions: 'Razem',
+    successRate: 'Skuteczność',
+    frequencyByDay: 'Częstotliwość wg dni',
+    calendar: 'Kalendarz',
+    askAiAboutHabit: 'Zapytaj AI o ten nawyk',
     // Default category translations
     cat_health: 'Zdrowie',
     cat_productivity: 'Produktywność',

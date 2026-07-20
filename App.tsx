@@ -5,11 +5,11 @@ import { Habit, Category } from './types';
 import HabitCard from './components/HabitCard';
 import AddHabitModal from './components/AddHabitModal';
 import ManageCategoriesModal from './components/ManageCategoriesModal';
-import HabitHistoryModal from './components/HabitHistoryModal';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import AuthModal from './components/AuthModal';
 import ProfileModal from './components/ProfileModal';
 import DailyInsight from './components/DailyInsight';
+import HabitDetails from './components/HabitDetails'; // New Component
 import { Language, translations } from './translations';
 import { supabase } from './services/supabaseClient';
 import { getMotivationalInsight } from './services/geminiService';
@@ -35,12 +35,14 @@ const App: React.FC = () => {
   const [insight, setInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
 
+  // Navigation State
+  const [viewingHabit, setViewingHabit] = useState<Habit | null>(null);
+
   // Modals State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isManageCategoriesOpen, setIsManageCategoriesOpen] = useState(false);
-  const [historyHabit, setHistoryHabit] = useState<Habit | null>(null);
   
   // Editing Habit State
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
@@ -106,6 +108,7 @@ const App: React.FC = () => {
       setHabits([]);
       setCategories([]);
       setInsight(null);
+      setViewingHabit(null);
     } else {
       setUser(user);
     }
@@ -120,6 +123,7 @@ const App: React.FC = () => {
         setHabits([]);
         setCategories([]);
         setInsight(null);
+        setViewingHabit(null);
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setUser(session?.user ?? null);
       }
@@ -193,11 +197,13 @@ const App: React.FC = () => {
         
         // Only fetch insight if we have habits and no insight yet
         if (mappedHabits.length > 0 && !insight) {
-            // Note: We need fresh categories. loadCategories updates state asynchronously, 
-            // but we can't rely on state being updated in this same closure unless we fetch them here or wait.
-            // For simplicity, we trigger insight but it might miss categories on the very first fraction of second.
-            // To fix, we can refactor. But standard practice:
             fetchInsight(mappedHabits, categories);
+        }
+        
+        // If we are viewing a specific habit, update its reference to keep stats live
+        if (viewingHabit) {
+            const updated = mappedHabits.find(h => h.id === viewingHabit.id);
+            if (updated) setViewingHabit(updated);
         }
       }
       setLoadingHabits(false);
@@ -265,10 +271,10 @@ const App: React.FC = () => {
     const newHabits = [...habits];
     newHabits[habitIndex] = updatedHabit;
     setHabits(newHabits);
-
-    // Update History modal if open
-    if (historyHabit && historyHabit.id === id) {
-      setHistoryHabit(updatedHabit);
+    
+    // Update detail view if active
+    if (viewingHabit && viewingHabit.id === id) {
+        setViewingHabit(updatedHabit);
     }
 
     // 2. Supabase Interaction (Relational Table)
@@ -298,7 +304,7 @@ const App: React.FC = () => {
       console.error("Error toggling habit:", error);
       // Revert on error
       setHabits(previousHabits);
-      if (historyHabit && historyHabit.id === id) setHistoryHabit(habit); // revert modal
+      if (viewingHabit && viewingHabit.id === id) setViewingHabit(habit);
       verifyUser();
     }
   };
@@ -354,6 +360,11 @@ const App: React.FC = () => {
     setHabits(prev => prev.map(h => 
         h.id === id ? { ...h, title, category_id: categoryId } : h
     ));
+    
+    // If editing while viewing details, update detail view
+    if (viewingHabit && viewingHabit.id === id) {
+        setViewingHabit(prev => prev ? { ...prev, title, category_id: categoryId } : null);
+    }
   };
 
   const handleDeleteHabit = async (id: string) => {
@@ -362,6 +373,11 @@ const App: React.FC = () => {
       const previousHabits = [...habits];
       setHabits(prev => prev.filter(h => h.id !== id));
       
+      // If we are in details view, go back
+      if (viewingHabit && viewingHabit.id === id) {
+          setViewingHabit(null);
+      }
+
       const { error } = await supabase.from('habits').delete().eq('id', id);
       
       if (error) {
@@ -376,9 +392,10 @@ const App: React.FC = () => {
     setEditingHabit(habit);
     setIsAddModalOpen(true);
   };
-
-  const handleViewHistory = (habit: Habit) => {
-    setHistoryHabit(habit);
+  
+  const handleViewDetails = (habit: Habit) => {
+      setViewingHabit(habit);
+      window.scrollTo(0, 0);
   };
 
   const handleUpdateCategory = async (id: string, name: string, color: string) => {
@@ -558,122 +575,144 @@ const App: React.FC = () => {
                 </div>
             </div>
             
-            <button 
-              onClick={() => { setEditingHabit(null); setIsAddModalOpen(true); }}
-              className="bg-white text-slate-900 hover:bg-indigo-50 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/20"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">{t.newHabit}</span>
-              <span className="sm:hidden">Nowy</span>
-            </button>
+            {!viewingHabit && (
+                <button 
+                  onClick={() => { setEditingHabit(null); setIsAddModalOpen(true); }}
+                  className="bg-white text-slate-900 hover:bg-indigo-50 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/20"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">{t.newHabit}</span>
+                  <span className="sm:hidden">Nowy</span>
+                </button>
+            )}
           </div>
         </div>
       </div>
 
       <main className="max-w-2xl mx-auto p-4 pt-8 pb-32 md:pb-10">
-        {/* User Welcome */}
-        <div className="mb-6">
-           <h1 className="text-2xl font-bold text-white">
-             {t.hello}, <span className="text-indigo-400">{displayName}</span>! 👋
-           </h1>
-        </div>
-
-        {/* Daily Insight Box */}
-        {activeTab === 'habits' && habits.length > 0 && (
-           <DailyInsight 
-             insight={insight} 
-             loading={loadingInsight} 
-             onRefresh={() => fetchInsight(habits, categories)} 
-             language={language}
-           />
-        )}
-
-        {activeTab === 'habits' ? (
-          <>
-            <DateHeader />
-            <div className="space-y-4">
-              {loadingHabits ? (
-                 <div className="flex justify-center py-20">
-                    <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-                 </div>
-              ) : habits.length === 0 ? (
-                 <div className="text-center py-20 bg-white/5 rounded-3xl border border-white/5 border-dashed">
-                    <div className="w-20 h-20 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-600">
-                        <CheckSquare className="w-10 h-10" />
-                    </div>
-                    <h3 className="text-slate-300 font-medium text-lg">{t.noHabits}</h3>
-                    <p className="text-slate-500 text-sm mt-2">{t.noHabitsSub}</p>
-                 </div>
-              ) : (
-                habits.map(habit => (
-                  <HabitCard
-                    key={habit.id}
-                    habit={habit}
-                    category={getCategoryForHabit(habit)}
-                    selectedDate={selectedDateStr}
-                    onToggle={handleToggleHabit}
-                    onDelete={handleDeleteHabit}
-                    onEdit={handleEditHabit}
-                    onViewHistory={handleViewHistory}
-                    language={language}
-                  />
-                ))
-              )}
-            </div>
-          </>
+        
+        {/* --- DETAIL VIEW --- */}
+        {viewingHabit ? (
+            <HabitDetails 
+                habit={viewingHabit}
+                category={getCategoryForHabit(viewingHabit)}
+                language={language}
+                onBack={() => setViewingHabit(null)}
+                onToggle={handleToggleHabit}
+                onEdit={handleEditHabit}
+            />
         ) : (
-          <AnalyticsDashboard habits={habits} language={language} />
+            /* --- DASHBOARD VIEW --- */
+            <>
+                <div className="mb-6">
+                   <h1 className="text-2xl font-bold text-white">
+                     {t.hello}, <span className="text-indigo-400">{displayName}</span>! 👋
+                   </h1>
+                </div>
+
+                {/* Daily Insight Box */}
+                {activeTab === 'habits' && habits.length > 0 && (
+                   <DailyInsight 
+                     insight={insight} 
+                     loading={loadingInsight} 
+                     onRefresh={() => fetchInsight(habits, categories)} 
+                     language={language}
+                   />
+                )}
+
+                {activeTab === 'habits' ? (
+                  <>
+                    <DateHeader />
+                    <div className="space-y-4">
+                      {loadingHabits ? (
+                         <div className="flex justify-center py-20">
+                            <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+                         </div>
+                      ) : habits.length === 0 ? (
+                         <div className="text-center py-20 bg-white/5 rounded-3xl border border-white/5 border-dashed">
+                            <div className="w-20 h-20 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-600">
+                                <CheckSquare className="w-10 h-10" />
+                            </div>
+                            <h3 className="text-slate-300 font-medium text-lg">{t.noHabits}</h3>
+                            <p className="text-slate-500 text-sm mt-2">{t.noHabitsSub}</p>
+                         </div>
+                      ) : (
+                        habits.map(habit => (
+                          <HabitCard
+                            key={habit.id}
+                            habit={habit}
+                            category={getCategoryForHabit(habit)}
+                            selectedDate={selectedDateStr}
+                            onToggle={handleToggleHabit}
+                            onDelete={handleDeleteHabit}
+                            onEdit={handleEditHabit}
+                            onViewHistory={() => {}} // Deprecated
+                            language={language}
+                            onViewDetails={handleViewDetails}
+                          />
+                        ))
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <AnalyticsDashboard habits={habits} language={language} />
+                )}
+            </>
         )}
       </main>
 
       {/* Bottom Nav (Mobile) */}
-      <div className="fixed bottom-6 left-0 right-0 flex justify-center md:hidden z-40 pointer-events-none">
-        <div className="bg-black/40 backdrop-blur-2xl border border-white/10 px-6 py-3 rounded-full shadow-2xl flex items-center gap-8 pointer-events-auto">
-          <button 
-            onClick={() => setActiveTab('habits')}
-            className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'habits' ? 'text-indigo-400 scale-110' : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            <Calendar className="w-6 h-6" />
-            <div className={`w-1 h-1 rounded-full mt-1 ${activeTab === 'habits' ? 'bg-indigo-400' : 'bg-transparent'}`} />
-          </button>
-          <div className="w-px h-8 bg-white/10"></div>
-          <button 
-            onClick={() => setActiveTab('analytics')}
-            className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'analytics' ? 'text-indigo-400 scale-110' : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            <BarChart2 className="w-6 h-6" />
-            <div className={`w-1 h-1 rounded-full mt-1 ${activeTab === 'analytics' ? 'bg-indigo-400' : 'bg-transparent'}`} />
-          </button>
-        </div>
-      </div>
+      {!viewingHabit && (
+          <div className="fixed bottom-6 left-0 right-0 flex justify-center md:hidden z-40 pointer-events-none">
+            <div className="bg-black/40 backdrop-blur-2xl border border-white/10 px-6 py-3 rounded-full shadow-2xl flex items-center gap-8 pointer-events-auto">
+              <button 
+                onClick={() => setActiveTab('habits')}
+                className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'habits' ? 'text-indigo-400 scale-110' : 'text-slate-500 hover:text-slate-300'}`}
+              >
+                <Calendar className="w-6 h-6" />
+                <div className={`w-1 h-1 rounded-full mt-1 ${activeTab === 'habits' ? 'bg-indigo-400' : 'bg-transparent'}`} />
+              </button>
+              <div className="w-px h-8 bg-white/10"></div>
+              <button 
+                onClick={() => setActiveTab('analytics')}
+                className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'analytics' ? 'text-indigo-400 scale-110' : 'text-slate-500 hover:text-slate-300'}`}
+              >
+                <BarChart2 className="w-6 h-6" />
+                <div className={`w-1 h-1 rounded-full mt-1 ${activeTab === 'analytics' ? 'bg-indigo-400' : 'bg-transparent'}`} />
+              </button>
+            </div>
+          </div>
+      )}
 
       {/* Desktop Tabs */}
-      <div className="hidden md:block fixed left-8 top-28 w-56">
-         <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/5 shadow-xl p-3 space-y-2">
-            <button 
-              onClick={() => setActiveTab('habits')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                activeTab === 'habits' 
-                ? 'bg-gradient-to-r from-indigo-600/80 to-purple-600/80 text-white shadow-lg shadow-indigo-900/50' 
-                : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
-              }`}
-            >
-              <Calendar className="w-4 h-4" />
-              {t.habits}
-            </button>
-            <button 
-              onClick={() => setActiveTab('analytics')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                activeTab === 'analytics' 
-                ? 'bg-gradient-to-r from-indigo-600/80 to-purple-600/80 text-white shadow-lg shadow-indigo-900/50' 
-                : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
-              }`}
-            >
-              <BarChart2 className="w-4 h-4" />
-              {t.analytics}
-            </button>
-         </div>
-      </div>
+      {!viewingHabit && (
+          <div className="hidden md:block fixed left-8 top-28 w-56">
+             <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/5 shadow-xl p-3 space-y-2">
+                <button 
+                  onClick={() => setActiveTab('habits')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                    activeTab === 'habits' 
+                    ? 'bg-gradient-to-r from-indigo-600/80 to-purple-600/80 text-white shadow-lg shadow-indigo-900/50' 
+                    : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4" />
+                  {t.habits}
+                </button>
+                <button 
+                  onClick={() => setActiveTab('analytics')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                    activeTab === 'analytics' 
+                    ? 'bg-gradient-to-r from-indigo-600/80 to-purple-600/80 text-white shadow-lg shadow-indigo-900/50' 
+                    : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                  }`}
+                >
+                  <BarChart2 className="w-4 h-4" />
+                  {t.analytics}
+                </button>
+             </div>
+          </div>
+      )}
 
       {/* Modals */}
       <AddHabitModal 
@@ -695,14 +734,6 @@ const App: React.FC = () => {
         language={language}
         onUpdate={handleUpdateCategory}
         onDelete={handleDeleteCategory}
-      />
-
-      <HabitHistoryModal
-        isOpen={!!historyHabit}
-        onClose={() => setHistoryHabit(null)}
-        habit={historyHabit}
-        language={language}
-        onToggle={handleToggleHabit}
       />
 
       <ProfileModal
